@@ -1,16 +1,19 @@
 import { useState } from 'react';
-import { LogIn, UserPlus, Loader2 } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+import { LogIn, Loader2, Mail, Lock } from 'lucide-react';
+import {
+  useAuth,
+  STATIC_LOGIN_EMAIL,
+  STATIC_LOGIN_PASSWORD,
+} from '../contexts/AuthContext';
 
 export function AuthForm() {
-  const [isLogin, setIsLogin] = useState(true);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState(STATIC_LOGIN_EMAIL);
+  const [password, setPassword] = useState(STATIC_LOGIN_PASSWORD);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const { signIn, signUp } = useAuth();
+  const { signIn } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,20 +22,12 @@ export function AuthForm() {
     setLoading(true);
 
     try {
-      const result = isLogin
-        ? await signIn(email, password)
-        : await signUp(email, password);
+      const result = await signIn(email, password);
 
       if (result.error) {
         setError(result.error.message);
       } else {
-        if (isLogin) {
-          setSuccess('Login successful.');
-        } else {
-          setSuccess('Signup successful. You are now logged in.');
-        }
-
-        setPassword('');
+        setSuccess('Login successful. Redirecting to dashboard...');
       }
     } catch (err) {
       if (err instanceof Error) {
@@ -45,23 +40,47 @@ export function AuthForm() {
     }
   };
 
+  const fillDemoCredentials = () => {
+    setEmail(STATIC_LOGIN_EMAIL);
+    setPassword(STATIC_LOGIN_PASSWORD);
+    setError('');
+    setSuccess('');
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        <div className="bg-white rounded-2xl shadow-xl p-8 space-y-6">
+        <div className="bg-white rounded-2xl shadow-xl p-8 space-y-6 border border-slate-200">
           <div className="text-center">
             <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-xl mb-4">
               <LogIn className="w-8 h-8 text-white" />
             </div>
+
             <h1 className="text-3xl font-bold text-slate-900">
               Department Manager
             </h1>
+
             <p className="text-slate-600 mt-2">
-              {isLogin ? 'Sign in to your account' : 'Create a new account'}
+              Login with the static account to open the dashboard
             </p>
-            <p className="text-xs text-slate-500 mt-2">
-              Demo mode: any email/username and any password will work.
+          </div>
+
+          <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-slate-700">
+            <p className="font-semibold text-blue-700 mb-2">Static Login</p>
+            <p>
+              <span className="font-medium">Email:</span> {STATIC_LOGIN_EMAIL}
             </p>
+            <p>
+              <span className="font-medium">Password:</span> {STATIC_LOGIN_PASSWORD}
+            </p>
+
+            <button
+              type="button"
+              onClick={fillDemoCredentials}
+              className="mt-3 inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-white font-medium hover:bg-blue-700 transition-colors"
+            >
+              Use Demo Credentials
+            </button>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -70,16 +89,19 @@ export function AuthForm() {
                 htmlFor="email"
                 className="block text-sm font-medium text-slate-700 mb-1"
               >
-                Email / Username
+                Email
               </label>
-              <input
-                id="email"
-                type="text"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
-                placeholder="Enter any email or username"
-              />
+              <div className="relative">
+                <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
+                  placeholder="Enter email"
+                />
+              </div>
             </div>
 
             <div>
@@ -89,14 +111,17 @@ export function AuthForm() {
               >
                 Password
               </label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
-                placeholder="Enter any password"
-              />
+              <div className="relative">
+                <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
+                  placeholder="Enter password"
+                />
+              </div>
             </div>
 
             {error && (
@@ -119,36 +144,16 @@ export function AuthForm() {
               {loading ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  {isLogin ? 'Signing in...' : 'Creating account...'}
+                  Logging in...
                 </>
               ) : (
                 <>
-                  {isLogin ? (
-                    <LogIn className="w-5 h-5" />
-                  ) : (
-                    <UserPlus className="w-5 h-5" />
-                  )}
-                  {isLogin ? 'Sign In' : 'Sign Up'}
+                  <LogIn className="w-5 h-5" />
+                  Login to Dashboard
                 </>
               )}
             </button>
           </form>
-
-          <div className="text-center">
-            <button
-              type="button"
-              onClick={() => {
-                setIsLogin(!isLogin);
-                setError('');
-                setSuccess('');
-              }}
-              className="text-blue-600 hover:text-blue-700 text-sm font-medium transition-colors"
-            >
-              {isLogin
-                ? "Don't have an account? Sign up"
-                : 'Already have an account? Sign in'}
-            </button>
-          </div>
         </div>
       </div>
     </div>

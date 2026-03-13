@@ -10,7 +10,7 @@ type AppAuthError = {
   message: string;
 };
 
-type AppUser = {
+export type AppUser = {
   id: string;
   email: string;
 };
@@ -34,19 +34,15 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const STORAGE_KEY = 'department_manager_demo_auth';
+const STORAGE_KEY = 'department_manager_static_auth';
 
-function generateUser(email: string): AppUser {
-  const cleanEmail = email.trim() || `guest_${Date.now()}@department.local`;
+export const STATIC_LOGIN_EMAIL = 'test@gmail.com';
+export const STATIC_LOGIN_PASSWORD = 'test1234';
 
-  return {
-    id:
-      typeof crypto !== 'undefined' && crypto.randomUUID
-        ? crypto.randomUUID()
-        : String(Date.now()),
-    email: cleanEmail,
-  };
-}
+const STATIC_USER: AppUser = {
+  id: 'demo-user-1',
+  email: STATIC_LOGIN_EMAIL,
+};
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AppUser | null>(null);
@@ -58,9 +54,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const saved = localStorage.getItem(STORAGE_KEY);
 
       if (saved) {
-        const parsedUser: AppUser = JSON.parse(saved);
-        setUser(parsedUser);
-        setSession({ user: parsedUser });
+        const parsed = JSON.parse(saved) as AppUser;
+
+        if (parsed?.email === STATIC_LOGIN_EMAIL) {
+          setUser(STATIC_USER);
+          setSession({ user: STATIC_USER });
+        } else {
+          localStorage.removeItem(STORAGE_KEY);
+        }
       }
     } catch (error) {
       console.error('Failed to load auth from localStorage:', error);
@@ -70,24 +71,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const signIn = async (email: string, _password: string): Promise<AuthResult> => {
-    const demoUser = generateUser(email);
+  const signIn = async (email: string, password: string): Promise<AuthResult> => {
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPassword = password.trim();
 
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(demoUser));
-    setUser(demoUser);
-    setSession({ user: demoUser });
+    if (
+      cleanEmail !== STATIC_LOGIN_EMAIL ||
+      cleanPassword !== STATIC_LOGIN_PASSWORD
+    ) {
+      return {
+        error: {
+          message: 'Invalid email or password. Use test@gmail.com / test1234',
+        },
+      };
+    }
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(STATIC_USER));
+    setUser(STATIC_USER);
+    setSession({ user: STATIC_USER });
 
     return { error: null };
   };
 
-  const signUp = async (email: string, _password: string): Promise<AuthResult> => {
-    const demoUser = generateUser(email);
-
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(demoUser));
-    setUser(demoUser);
-    setSession({ user: demoUser });
-
-    return { error: null };
+  const signUp = async (): Promise<AuthResult> => {
+    return {
+      error: {
+        message: 'Signup is disabled. Please login with the static credentials.',
+      },
+    };
   };
 
   const signOut = async () => {

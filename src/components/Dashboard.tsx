@@ -1,397 +1,315 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
-  LogOut,
-  Plus,
-  Pencil,
-  Trash2,
-  Users,
   Building2,
-  Loader2,
+  Users,
+  FileText,
+  UserCircle2,
+  Trash2,
+  LogOut,
+  PlusCircle,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { supabase, type Department } from '../lib/supabase';
+
+type Department = {
+  id: string;
+  name: string;
+  description: string;
+  head: string;
+  employeeCount: number;
+  createdAt: string;
+};
+
+const DEPARTMENT_STORAGE_KEY = 'department_manager_departments';
+
+function createId() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return String(Date.now());
+}
 
 export function Dashboard() {
   const { user, signOut } = useAuth();
 
   const [departments, setDepartments] = useState<Department[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [head, setHead] = useState('');
+  const [employeeCount, setEmployeeCount] = useState('');
   const [error, setError] = useState('');
-  const [showModal, setShowModal] = useState(false);
-  const [editingDept, setEditingDept] = useState<Department | null>(null);
-  const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    head: '',
-    employee_count: 0,
-  });
+  const [success, setSuccess] = useState('');
 
   useEffect(() => {
-    loadDepartments();
+    try {
+      const saved = localStorage.getItem(DEPARTMENT_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved) as Department[];
+        setDepartments(parsed);
+      }
+    } catch (error) {
+      console.error('Failed to load departments:', error);
+      localStorage.removeItem(DEPARTMENT_STORAGE_KEY);
+    }
   }, []);
 
-  const loadDepartments = async () => {
-    setLoading(true);
-    setError('');
+  useEffect(() => {
+    localStorage.setItem(DEPARTMENT_STORAGE_KEY, JSON.stringify(departments));
+  }, [departments]);
 
-    const { data, error } = await supabase
-      .from('departments')
-      .select('*')
-      .order('name', { ascending: true });
+  const totalEmployees = useMemo(() => {
+    return departments.reduce((sum, item) => sum + item.employeeCount, 0);
+  }, [departments]);
 
-    if (error) {
-      setError(error.message);
-      setDepartments([]);
-    } else {
-      setDepartments((data as Department[]) || []);
-    }
-
-    setLoading(false);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleCreateDepartment = (e: React.FormEvent) => {
     e.preventDefault();
-    setSaving(true);
     setError('');
+    setSuccess('');
 
-    if (editingDept) {
-      const { error } = await supabase
-        .from('departments')
-        .update({
-          name: formData.name,
-          description: formData.description,
-          head: formData.head,
-          employee_count: formData.employee_count,
-        })
-        .eq('id', editingDept.id);
-
-      if (error) {
-        setError(error.message);
-      } else {
-        await loadDepartments();
-        closeModal();
-      }
-    } else {
-      const { error } = await supabase.from('departments').insert([
-        {
-          name: formData.name,
-          description: formData.description,
-          head: formData.head,
-          employee_count: formData.employee_count,
-        },
-      ]);
-
-      if (error) {
-        setError(error.message);
-      } else {
-        await loadDepartments();
-        closeModal();
-      }
+    if (!name.trim()) {
+      setError('Department name is required.');
+      return;
     }
 
-    setSaving(false);
-  };
-
-  const handleDelete = async (id: string) => {
-    const confirmed = window.confirm(
-      'Are you sure you want to delete this department?'
-    );
-
-    if (!confirmed) return;
-
-    setError('');
-
-    const { error } = await supabase.from('departments').delete().eq('id', id);
-
-    if (error) {
-      setError(error.message);
-    } else {
-      await loadDepartments();
-    }
-  };
-
-  const openModal = (dept?: Department) => {
-    if (dept) {
-      setEditingDept(dept);
-      setFormData({
-        name: dept.name ?? '',
-        description: dept.description ?? '',
-        head: dept.head ?? '',
-        employee_count: dept.employee_count ?? 0,
-      });
-    } else {
-      setEditingDept(null);
-      setFormData({
-        name: '',
-        description: '',
-        head: '',
-        employee_count: 0,
-      });
+    if (!head.trim()) {
+      setError('Department head is required.');
+      return;
     }
 
-    setShowModal(true);
+    const parsedEmployeeCount = Number(employeeCount);
+
+    if (Number.isNaN(parsedEmployeeCount) || parsedEmployeeCount < 0) {
+      setError('Employee count must be a valid number.');
+      return;
+    }
+
+    const newDepartment: Department = {
+      id: createId(),
+      name: name.trim(),
+      description: description.trim(),
+      head: head.trim(),
+      employeeCount: parsedEmployeeCount,
+      createdAt: new Date().toLocaleString(),
+    };
+
+    setDepartments((prev) => [newDepartment, ...prev]);
+    setName('');
+    setDescription('');
+    setHead('');
+    setEmployeeCount('');
+    setSuccess('Department created successfully.');
   };
 
-  const closeModal = () => {
-    setShowModal(false);
-    setEditingDept(null);
-    setFormData({
-      name: '',
-      description: '',
-      head: '',
-      employee_count: 0,
-    });
+  const handleDeleteDepartment = (id: string) => {
+    setDepartments((prev) => prev.filter((item) => item.id !== id));
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="bg-white shadow-sm border-b border-slate-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-                <Building2 className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-slate-900">
-                  Department Manager
-                </h1>
-                <p className="text-sm text-slate-600">
-                  {user?.email || 'Demo User'}
-                </p>
-              </div>
-            </div>
-
-            <button
-              onClick={signOut}
-              className="flex items-center gap-2 px-4 py-2 text-slate-700 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
-            >
-              <LogOut className="w-4 h-4" />
-              Sign Out
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-6 flex items-center justify-between">
+    <div className="min-h-screen bg-slate-100">
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto px-4 py-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h2 className="text-xl font-semibold text-slate-900">Departments</h2>
-            <p className="text-slate-600 mt-1">
-              Manage your organization's departments
+            <h1 className="text-2xl font-bold text-slate-900">
+              Department Dashboard
+            </h1>
+            <p className="text-slate-600 text-sm mt-1">
+              Logged in as <span className="font-semibold">{user?.email}</span>
             </p>
           </div>
 
           <button
-            onClick={() => openModal()}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors font-medium"
+            onClick={signOut}
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-white font-medium hover:bg-red-700 transition-colors"
           >
-            <Plus className="w-5 h-5" />
-            Add Department
+            <LogOut className="w-4 h-4" />
+            Logout
           </button>
         </div>
+      </header>
 
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-            {error}
-          </div>
-        )}
-
-        {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
-          </div>
-        ) : departments.length === 0 ? (
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">
-            <Building2 className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-slate-900 mb-2">
-              No departments yet
-            </h3>
-            <p className="text-slate-600 mb-4">
-              Get started by creating your first department
-            </p>
-            <button
-              onClick={() => openModal()}
-              className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors font-medium"
-            >
-              <Plus className="w-5 h-5" />
-              Add Department
-            </button>
-          </div>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {departments.map((dept) => (
-              <div
-                key={dept.id}
-                className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 hover:shadow-md transition-shadow"
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-slate-900 mb-1">
-                      {dept.name}
-                    </h3>
-                    {dept.description && (
-                      <p className="text-sm text-slate-600 line-clamp-2">
-                        {dept.description}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="space-y-2 mb-4">
-                  {dept.head && (
-                    <div className="flex items-center gap-2 text-sm text-slate-600">
-                      <Users className="w-4 h-4" />
-                      <span>Head: {dept.head}</span>
-                    </div>
-                  )}
-
-                  <div className="flex items-center gap-2 text-sm text-slate-600">
-                    <Users className="w-4 h-4" />
-                    <span>
-                      {dept.employee_count}{' '}
-                      {dept.employee_count === 1 ? 'employee' : 'employees'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex gap-2 pt-4 border-t border-slate-100">
-                  <button
-                    onClick={() => openModal(dept)}
-                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors text-sm font-medium"
-                  >
-                    <Pencil className="w-4 h-4" />
-                    Edit
-                  </button>
-
-                  <button
-                    onClick={() => handleDelete(dept.id)}
-                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors text-sm font-medium"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Delete
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </main>
-
-      {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
-            <h3 className="text-xl font-semibold text-slate-900 mb-4">
-              {editingDept ? 'Edit Department' : 'Add Department'}
-            </h3>
-
-            <form onSubmit={handleSubmit} className="space-y-4">
+      <main className="max-w-7xl mx-auto p-4 md:p-6 space-y-6">
+        <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+            <div className="flex items-center justify-between">
               <div>
-                <label
-                  htmlFor="name"
-                  className="block text-sm font-medium text-slate-700 mb-1"
-                >
+                <p className="text-slate-500 text-sm">Total Departments</p>
+                <h2 className="text-3xl font-bold text-slate-900 mt-2">
+                  {departments.length}
+                </h2>
+              </div>
+              <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center">
+                <Building2 className="w-6 h-6 text-blue-600" />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-slate-500 text-sm">Total Employees</p>
+                <h2 className="text-3xl font-bold text-slate-900 mt-2">
+                  {totalEmployees}
+                </h2>
+              </div>
+              <div className="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center">
+                <Users className="w-6 h-6 text-green-600" />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-slate-500 text-sm">Admin User</p>
+                <h2 className="text-lg font-bold text-slate-900 mt-2 break-all">
+                  {user?.email}
+                </h2>
+              </div>
+              <div className="w-12 h-12 rounded-xl bg-purple-100 flex items-center justify-center">
+                <UserCircle2 className="w-6 h-6 text-purple-600" />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <PlusCircle className="w-5 h-5 text-blue-600" />
+              <h2 className="text-xl font-bold text-slate-900">
+                Create Department
+              </h2>
+            </div>
+
+            <form onSubmit={handleCreateDepartment} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
                   Department Name
                 </label>
                 <input
-                  id="name"
                   type="text"
-                  value={formData.name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
-                  }
-                  required
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Engineering"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Enter department name"
+                  className="w-full rounded-lg border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
 
               <div>
-                <label
-                  htmlFor="description"
-                  className="block text-sm font-medium text-slate-700 mb-1"
-                >
-                  Description
-                </label>
-                <textarea
-                  id="description"
-                  value={formData.description}
-                  onChange={(e) =>
-                    setFormData({ ...formData, description: e.target.value })
-                  }
-                  rows={3}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                  placeholder="Brief description of the department"
-                />
-              </div>
-
-              <div>
-                <label
-                  htmlFor="head"
-                  className="block text-sm font-medium text-slate-700 mb-1"
-                >
+                <label className="block text-sm font-medium text-slate-700 mb-1">
                   Department Head
                 </label>
                 <input
-                  id="head"
                   type="text"
-                  value={formData.head}
-                  onChange={(e) =>
-                    setFormData({ ...formData, head: e.target.value })
-                  }
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="John Doe"
+                  value={head}
+                  onChange={(e) => setHead(e.target.value)}
+                  placeholder="Enter department head"
+                  className="w-full rounded-lg border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
 
               <div>
-                <label
-                  htmlFor="employee_count"
-                  className="block text-sm font-medium text-slate-700 mb-1"
-                >
+                <label className="block text-sm font-medium text-slate-700 mb-1">
                   Employee Count
                 </label>
                 <input
-                  id="employee_count"
                   type="number"
-                  value={formData.employee_count}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      employee_count: parseInt(e.target.value, 10) || 0,
-                    })
-                  }
+                  value={employeeCount}
+                  onChange={(e) => setEmployeeCount(e.target.value)}
+                  placeholder="Enter employee count"
+                  className="w-full rounded-lg border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   min="0"
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
 
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors font-medium"
-                >
-                  Cancel
-                </button>
-
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium disabled:opacity-50"
-                >
-                  {saving
-                    ? 'Saving...'
-                    : editingDept
-                    ? 'Save Changes'
-                    : 'Add Department'}
-                </button>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Description
+                </label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Enter department description"
+                  rows={4}
+                  className="w-full rounded-lg border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                />
               </div>
+
+              {error && (
+                <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                  {error}
+                </div>
+              )}
+
+              {success && (
+                <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">
+                  {success}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 py-3 text-white font-medium hover:bg-blue-700 transition-colors"
+              >
+                <PlusCircle className="w-4 h-4" />
+                Create Department
+              </button>
             </form>
           </div>
-        </div>
-      )}
+
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <FileText className="w-5 h-5 text-slate-700" />
+              <h2 className="text-xl font-bold text-slate-900">
+                Department List
+              </h2>
+            </div>
+
+            {departments.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-slate-500">
+                No departments created yet.
+              </div>
+            ) : (
+              <div className="space-y-4 max-h-[600px] overflow-y-auto pr-1">
+                {departments.map((department) => (
+                  <div
+                    key={department.id}
+                    className="rounded-xl border border-slate-200 p-4 bg-slate-50"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <h3 className="text-lg font-bold text-slate-900">
+                          {department.name}
+                        </h3>
+                        <p className="text-sm text-slate-600 mt-1">
+                          <span className="font-medium">Head:</span> {department.head}
+                        </p>
+                        <p className="text-sm text-slate-600">
+                          <span className="font-medium">Employees:</span>{' '}
+                          {department.employeeCount}
+                        </p>
+                        <p className="text-sm text-slate-500 mt-2">
+                          {department.description || 'No description added.'}
+                        </p>
+                        <p className="text-xs text-slate-400 mt-3">
+                          Created: {department.createdAt}
+                        </p>
+                      </div>
+
+                      <button
+                        onClick={() => handleDeleteDepartment(department.id)}
+                        className="inline-flex items-center justify-center rounded-lg bg-red-100 p-2 text-red-600 hover:bg-red-200 transition-colors"
+                        title="Delete department"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+      </main>
     </div>
   );
 }
