@@ -7,8 +7,10 @@ import {
   Trash2,
   LogOut,
   PlusCircle,
+  Loader2,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
 
 type Department = {
   id: string;
@@ -16,17 +18,17 @@ type Department = {
   description: string;
   head: string;
   employeeCount: number;
-  createdAt: string;
+  createdAt?: string;
 };
 
-const DEPARTMENT_STORAGE_KEY = 'department_manager_departments';
-
-function createId() {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return crypto.randomUUID();
-  }
-  return String(Date.now());
-}
+type DepartmentRow = {
+  id: string;
+  name: string;
+  description: string | null;
+  head: string | null;
+  employee_count: number | null;
+  created_at?: string | null;
+};
 
 export function Dashboard() {
   const { user, signOut } = useAuth();
@@ -38,29 +40,46 @@ export function Dashboard() {
   const [employeeCount, setEmployeeCount] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [pageLoading, setPageLoading] = useState(true);
+  const [saveLoading, setSaveLoading] = useState(false);
 
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(DEPARTMENT_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved) as Department[];
-        setDepartments(parsed);
-      }
-    } catch (error) {
-      console.error('Failed to load departments:', error);
-      localStorage.removeItem(DEPARTMENT_STORAGE_KEY);
+  const mapDepartmentRow = (row: DepartmentRow): Department => ({
+    id: row.id,
+    name: row.name ?? '',
+    description: row.description ?? '',
+    head: row.head ?? '',
+    employeeCount: row.employee_count ?? 0,
+    createdAt: row.created_at ?? '',
+  });
+
+  const fetchDepartments = async () => {
+    setPageLoading(true);
+    setError('');
+
+    const { data, error } = await supabase
+      .from('departments')
+      .select('id, name, description, head, employee_count, created_at')
+      .order('id', { ascending: false });
+
+    if (error) {
+      setError(error.message);
+      setPageLoading(false);
+      return;
     }
-  }, []);
+
+    setDepartments((data ?? []).map(mapDepartmentRow));
+    setPageLoading(false);
+  };
 
   useEffect(() => {
-    localStorage.setItem(DEPARTMENT_STORAGE_KEY, JSON.stringify(departments));
-  }, [departments]);
+    fetchDepartments();
+  }, []);
 
   const totalEmployees = useMemo(() => {
     return departments.reduce((sum, item) => sum + item.employeeCount, 0);
   }, [departments]);
 
-  const handleCreateDepartment = (e: React.FormEvent) => {
+  const handleCreateDepartment = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccess('');
@@ -82,25 +101,52 @@ export function Dashboard() {
       return;
     }
 
-    const newDepartment: Department = {
-      id: createId(),
-      name: name.trim(),
-      description: description.trim(),
-      head: head.trim(),
-      employeeCount: parsedEmployeeCount,
-      createdAt: new Date().toLocaleString(),
-    };
+    setSaveLoading(true);
 
-    setDepartments((prev) => [newDepartment, ...prev]);
+    const { data, error } = await supabase
+      .from('departments')
+      .insert([
+        {
+          name: name.trim(),
+          description: description.trim(),
+          head: head.trim(),
+          employee_count: parsedEmployeeCount,
+        },
+      ])
+      .select('id, name, description, head, employee_count, created_at')
+      .single();
+
+    setSaveLoading(false);
+
+    if (error) {
+      setError(error.message);
+      return;
+    }
+
+    if (data) {
+      setDepartments((prev) => [mapDepartmentRow(data as DepartmentRow), ...prev]);
+    }
+
     setName('');
     setDescription('');
     setHead('');
     setEmployeeCount('');
-    setSuccess('Department created successfully.');
+    setSuccess('Department created successfully in Supabase.');
   };
 
-  const handleDeleteDepartment = (id: string) => {
+  const handleDeleteDepartment = async (id: string) => {
+    setError('');
+    setSuccess('');
+
+    const { error } = await supabase.from('departments').delete().eq('id', id);
+
+    if (error) {
+      setError(error.message);
+      return;
+    }
+
     setDepartments((prev) => prev.filter((item) => item.id !== id));
+    setSuccess('Department deleted successfully.');
   };
 
   return (
@@ -248,10 +294,20 @@ export function Dashboard() {
 
               <button
                 type="submit"
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 py-3 text-white font-medium hover:bg-blue-700 transition-colors"
+                disabled={saveLoading}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 py-3 text-white font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
               >
-                <PlusCircle className="w-4 h-4" />
-                Create Department
+                {saveLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <PlusCircle className="w-4 h-4" />
+                    Create Department
+                  </>
+                )}
               </button>
             </form>
           </div>
@@ -264,9 +320,13 @@ export function Dashboard() {
               </h2>
             </div>
 
-            {departments.length === 0 ? (
+            {pageLoading ? (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-8 text-center text-slate-500">
+                Loading departments...
+              </div>
+            ) : departments.length === 0 ? (
               <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-slate-500">
-                No departments created yet.
+                No departments found in Supabase.
               </div>
             ) : (
               <div className="space-y-4 max-h-[600px] overflow-y-auto pr-1">
@@ -290,9 +350,11 @@ export function Dashboard() {
                         <p className="text-sm text-slate-500 mt-2">
                           {department.description || 'No description added.'}
                         </p>
-                        <p className="text-xs text-slate-400 mt-3">
-                          Created: {department.createdAt}
-                        </p>
+                        {department.createdAt && (
+                          <p className="text-xs text-slate-400 mt-3">
+                            Created: {new Date(department.createdAt).toLocaleString()}
+                          </p>
+                        )}
                       </div>
 
                       <button
