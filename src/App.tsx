@@ -1,7 +1,7 @@
+import { Loader2 } from 'lucide-react';
 import { useAuth } from './contexts/AuthContext';
 import { AuthForm } from './components/AuthForm';
 import { Dashboard } from './components/Dashboard';
-import { Loader2 } from 'lucide-react';
 
 function App() {
   const { user, loading } = useAuth();

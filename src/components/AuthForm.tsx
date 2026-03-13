@@ -7,24 +7,48 @@ export function AuthForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+
   const { signIn, signUp } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
     setLoading(true);
 
     try {
-      const { error } = isLogin
+      const result = isLogin
         ? await signIn(email, password)
         : await signUp(email, password);
 
-      if (error) {
-        setError(error.message);
+      if (result.error) {
+        setError(result.error.message);
+      } else {
+        if (isLogin) {
+          setSuccess('Login successful.');
+        } else {
+          setSuccess(
+            'Signup successful. If email confirmation is enabled in Supabase, check your email first, then sign in.'
+          );
+          setIsLogin(true);
+        }
+
+        setPassword('');
       }
     } catch (err) {
-      setError('An unexpected error occurred');
+      if (err instanceof Error) {
+        if (err.message.includes('Failed to fetch')) {
+          setError(
+            'Cannot connect to Supabase. Check your VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY, and make sure both are from the same Supabase project.'
+          );
+        } else {
+          setError(err.message);
+        }
+      } else {
+        setError('An unexpected error occurred');
+      }
     } finally {
       setLoading(false);
     }
@@ -48,7 +72,10 @@ export function AuthForm() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1">
+              <label
+                htmlFor="email"
+                className="block text-sm font-medium text-slate-700 mb-1"
+              >
                 Email
               </label>
               <input
@@ -63,7 +90,10 @@ export function AuthForm() {
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-1">
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-slate-700 mb-1"
+              >
                 Password
               </label>
               <input
@@ -84,6 +114,12 @@ export function AuthForm() {
               </div>
             )}
 
+            {success && (
+              <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
+                {success}
+              </div>
+            )}
+
             <button
               type="submit"
               disabled={loading}
@@ -96,7 +132,11 @@ export function AuthForm() {
                 </>
               ) : (
                 <>
-                  {isLogin ? <LogIn className="w-5 h-5" /> : <UserPlus className="w-5 h-5" />}
+                  {isLogin ? (
+                    <LogIn className="w-5 h-5" />
+                  ) : (
+                    <UserPlus className="w-5 h-5" />
+                  )}
                   {isLogin ? 'Sign In' : 'Sign Up'}
                 </>
               )}
@@ -109,10 +149,13 @@ export function AuthForm() {
               onClick={() => {
                 setIsLogin(!isLogin);
                 setError('');
+                setSuccess('');
               }}
               className="text-blue-600 hover:text-blue-700 text-sm font-medium transition-colors"
             >
-              {isLogin ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
+              {isLogin
+                ? "Don't have an account? Sign up"
+                : 'Already have an account? Sign in'}
             </button>
           </div>
         </div>
