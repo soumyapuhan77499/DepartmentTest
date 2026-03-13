@@ -5,16 +5,27 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import type { AuthError, Session, User } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabase';
+
+type AppAuthError = {
+  message: string;
+};
+
+type AppUser = {
+  id: string;
+  email: string;
+};
+
+type AppSession = {
+  user: AppUser;
+};
 
 type AuthResult = {
-  error: AuthError | null;
+  error: AppAuthError | null;
 };
 
 type AuthContextType = {
-  user: User | null;
-  session: Session | null;
+  user: AppUser | null;
+  session: AppSession | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<AuthResult>;
   signUp: (email: string, password: string) => Promise<AuthResult>;
@@ -23,63 +34,66 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const STORAGE_KEY = 'department_manager_demo_auth';
+
+function generateUser(email: string): AppUser {
+  const cleanEmail = email.trim() || `guest_${Date.now()}@department.local`;
+
+  return {
+    id:
+      typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : String(Date.now()),
+    email: cleanEmail,
+  };
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<AppUser | null>(null);
+  const [session, setSession] = useState<AppSession | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let mounted = true;
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
 
-    const loadSession = async () => {
-      const { data } = await supabase.auth.getSession();
-
-      if (!mounted) return;
-
-      setSession(data.session ?? null);
-      setUser(data.session?.user ?? null);
+      if (saved) {
+        const parsedUser: AppUser = JSON.parse(saved);
+        setUser(parsedUser);
+        setSession({ user: parsedUser });
+      }
+    } catch (error) {
+      console.error('Failed to load auth from localStorage:', error);
+      localStorage.removeItem(STORAGE_KEY);
+    } finally {
       setLoading(false);
-    };
-
-    loadSession();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session ?? null);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
+    }
   }, []);
 
-  const signIn = async (email: string, password: string): Promise<AuthResult> => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
+  const signIn = async (email: string, _password: string): Promise<AuthResult> => {
+    const demoUser = generateUser(email);
 
-    return { error };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(demoUser));
+    setUser(demoUser);
+    setSession({ user: demoUser });
+
+    return { error: null };
   };
 
-  const signUp = async (email: string, password: string): Promise<AuthResult> => {
-    const { error } = await supabase.auth.signUp({
-      email: email.trim(),
-      password,
-      options: {
-        emailRedirectTo: window.location.origin,
-      },
-    });
+  const signUp = async (email: string, _password: string): Promise<AuthResult> => {
+    const demoUser = generateUser(email);
 
-    return { error };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(demoUser));
+    setUser(demoUser);
+    setSession({ user: demoUser });
+
+    return { error: null };
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    localStorage.removeItem(STORAGE_KEY);
+    setUser(null);
+    setSession(null);
   };
 
   return (

@@ -157,7 +157,9 @@ export function Dashboard() {
                 <h1 className="text-2xl font-bold text-slate-900">
                   Department Manager
                 </h1>
-                <p className="text-sm text-slate-600">{user?.email}</p>
+                <p className="text-sm text-slate-600">
+                  {user?.email || 'Demo User'}
+                </p>
               </div>
             </div>
 

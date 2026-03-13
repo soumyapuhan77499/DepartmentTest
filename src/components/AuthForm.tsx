@@ -29,23 +29,14 @@ export function AuthForm() {
         if (isLogin) {
           setSuccess('Login successful.');
         } else {
-          setSuccess(
-            'Signup successful. If email confirmation is enabled in Supabase, check your email first, then sign in.'
-          );
-          setIsLogin(true);
+          setSuccess('Signup successful. You are now logged in.');
         }
 
         setPassword('');
       }
     } catch (err) {
       if (err instanceof Error) {
-        if (err.message.includes('Failed to fetch')) {
-          setError(
-            'Cannot connect to Supabase. Check your VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY, and make sure both are from the same Supabase project.'
-          );
-        } else {
-          setError(err.message);
-        }
+        setError(err.message);
       } else {
         setError('An unexpected error occurred');
       }
@@ -68,6 +59,9 @@ export function AuthForm() {
             <p className="text-slate-600 mt-2">
               {isLogin ? 'Sign in to your account' : 'Create a new account'}
             </p>
+            <p className="text-xs text-slate-500 mt-2">
+              Demo mode: any email/username and any password will work.
+            </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -76,16 +70,15 @@ export function AuthForm() {
                 htmlFor="email"
                 className="block text-sm font-medium text-slate-700 mb-1"
               >
-                Email
+                Email / Username
               </label>
               <input
                 id="email"
-                type="email"
+                type="text"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                required
                 className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
-                placeholder="you@example.com"
+                placeholder="Enter any email or username"
               />
             </div>
 
@@ -101,10 +94,8 @@ export function AuthForm() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={6}
                 className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
-                placeholder="••••••••"
+                placeholder="Enter any password"
               />
             </div>
 
