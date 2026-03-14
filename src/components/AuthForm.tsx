@@ -66,7 +66,7 @@ export function AuthForm() {
           </div>
 
           <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-slate-700">
-            <p className="font-semibold text-blue-700 mb-2">Static Login</p>
+            <p className="font-semibold text-blue-700 mb-2">Demo Login</p>
             <p>
               <span className="font-medium">Email:</span> {STATIC_LOGIN_EMAIL}
             </p>
